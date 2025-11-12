@@ -46,7 +46,7 @@ def hash_password(password: str) -> str:
 # ---------------------------
 def init_default_users():
     _, users_coll = get_db_collections()
-    if users_coll:
+    if users_coll is not None:
         if users_coll.count_documents({}) == 0:
             default_users = [
                 {"username": "admin", "password": hash_password("admin123"), "role": "admin", "full_name": "Administrator", "created_at": datetime.now()},
@@ -109,7 +109,7 @@ def create_local_df():
 # ---------------------------
 def load_products_from_mongo():
     coll, _ = get_db_collections()
-    if coll:
+    if coll is not None:
         docs = list(coll.find({}, {"_id": 0}))
         if len(docs) > 0:
             return pd.DataFrame(docs)
@@ -117,7 +117,7 @@ def load_products_from_mongo():
 
 def push_local_to_mongo(df):
     coll, _ = get_db_collections()
-    if coll:
+    if coll is not None:
         coll.delete_many({})
         if not df.empty:
             coll.insert_many(df.to_dict("records"))
@@ -126,7 +126,7 @@ def push_local_to_mongo(df):
 
 def upsert_product_to_mongo(product_dict):
     coll, _ = get_db_collections()
-    if coll:
+    if coll is not None:
         # Use Product_ID as identifier
         coll.update_one({"Product_ID": product_dict["Product_ID"]}, {"$set": product_dict}, upsert=True)
         return True
@@ -134,7 +134,7 @@ def upsert_product_to_mongo(product_dict):
 
 def delete_product_from_mongo(product_id):
     coll, _ = get_db_collections()
-    if coll:
+    if coll is not None:
         res = coll.delete_one({"Product_ID": product_id})
         return res.deleted_count > 0
     return False
@@ -429,3 +429,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

@@ -71,7 +71,7 @@ def register_user(username, password, full_name, role="user"):
 
 def authenticate_user(username, password):
     _, users_coll = get_db_collections()
-    iif users_coll is not None:
+    if users_coll is not None:
         user = users_coll.find_one({"username": username, "password": hash_password(password)})
         if user:
             return {"username": user["username"], "role": user["role"], "full_name": user.get("full_name", user["username"])}
@@ -429,6 +429,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 

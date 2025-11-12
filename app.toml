@@ -1,0 +1,5 @@
+[mongo]
+connection_string = "your_mongo_connection_string"   # e.g. mongodb+srv://user:pass@cluster0.xyz/test?retryWrites=true&w=majority
+database = "retail_db"
+collection = "products"
+users_collection = "users"

@@ -44,15 +44,6 @@ def hash_password(password: str) -> str:
 # ---------------------------
 # User functions (stored in Mongo)
 # ---------------------------
-def init_default_users():
-    _, users_coll = get_db_collections()
-    if users_coll is not None:
-        if users_coll.count_documents({}) == 0:
-            default_users = [
-                {"username": "admin", "password": hash_password("admin123"), "role": "admin", "full_name": "Administrator", "created_at": datetime.now()},
-                {"username": "user", "password": hash_password("user123"), "role": "user", "full_name": "Default User", "created_at": datetime.now()}
-            ]
-            users_coll.insert_many(default_users)
 
 def register_user(username, password, full_name, role="user"):
     _, users_coll = get_db_collections()
@@ -146,7 +137,6 @@ def show_login_register():
     st.title("🛒 Retail Sales Dashboard")
     st.markdown("Sign in to access the dashboard — admins can manage products; users can view & filter.")
 
-    init_default_users()
 
     tab1, tab2 = st.tabs(["Login", "Register"])
     with tab1:
@@ -160,7 +150,7 @@ def show_login_register():
                     if user:
                         st.session_state.logged_in = True
                         st.session_state.user = user
-                        st.experimental_rerun()
+                        st.rerun()
                     else:
                         st.error("Invalid credentials")
                 else:
@@ -197,7 +187,7 @@ def show_main_app():
     if st.sidebar.button("Logout"):
         st.session_state.logged_in = False
         st.session_state.user = None
-        st.experimental_rerun()
+        st.rerun()
 
     # Load data into session_state (local-first, then Mongo)
     if 'df' not in st.session_state:
@@ -321,7 +311,7 @@ def show_manage_products(df):
                     st.session_state.df = pd.concat([st.session_state.df, pd.DataFrame([new_row])], ignore_index=True)
                     upsert_product_to_mongo(new_row)
                     st.success("Product added")
-                    st.experimental_rerun()
+                    st.rerun()
 
     # ----- Edit -----
     with tab2:
@@ -368,7 +358,7 @@ def show_manage_products(df):
                         "Recommendation_Score": float(new_rec)
                     })
                     st.success("Product updated")
-                    st.experimental_rerun()
+                    st.rerun()
 
     # ----- Delete -----
     with tab3:
@@ -387,7 +377,7 @@ def show_manage_products(df):
                 else:
                     # even if mongo delete failed, keep local change
                     st.warning("Deleted locally — Mongo delete may have failed")
-                st.experimental_rerun()
+                st.rerun()
 
 # ---------------------------
 # Admin: Sync page
@@ -402,7 +392,7 @@ def show_sync_page(df):
             if not mongo_df.empty:
                 st.session_state.df = mongo_df
                 st.success("Pulled from Mongo into local session")
-                st.experimental_rerun()
+                st.rerun()
             else:
                 st.warning("Mongo collection empty")
     with col2:
@@ -429,6 +419,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 

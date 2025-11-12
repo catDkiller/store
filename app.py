@@ -56,7 +56,7 @@ def init_default_users():
 
 def register_user(username, password, full_name, role="user"):
     _, users_coll = get_db_collections()
-    iif users_coll is not None:
+    if users_coll is not None:
         if users_coll.find_one({"username": username}):
             return False, "Username already exists"
         users_coll.insert_one({
@@ -429,5 +429,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 

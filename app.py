@@ -1,166 +1,267 @@
+# app.py
 import streamlit as st
 import pandas as pd
 import numpy as np
-from pymongo import MongoClient
+import hashlib
+from datetime import datetime
 import plotly.express as px
+from pymongo import MongoClient
 
-# ==============================
-# MONGO CONNECTION
-# ==============================
-MONGO_URI = "mongodb+srv://Garvit:bababro89@store.bihf6uw.mongodb.net/?appName=store"
-DB_NAME = "retail_app"
-COLLECTION_NAME = "sales"
+# ---------------------------
+# Config / Page setup
+# ---------------------------
+st.set_page_config(page_title="Retail Sales Dashboard", page_icon="🛒", layout="wide")
 
-# Connect to MongoDB
-try:
-    client = MongoClient(MONGO_URI)
-    db = client[DB_NAME]
-    collection = db[COLLECTION_NAME]
-except Exception as e:
-    st.error(f"❌ MongoDB connection failed: {e}")
-    st.stop()
-
-# ==============================
-# DATA GENERATION (if empty)
-# ==============================
-if collection.count_documents({}) == 0:
-    np.random.seed(42)
-    customers = [f"CUST_{i}" for i in range(1, 21)]
-    items = ["Jeans", "Shoes", "T-Shirt", "Jacket", "Hat", "Watch"]
-    data = []
-    for i in range(20):
-        data.append({
-            "CustomerID": customers[i],
-            "Name": f"Customer_{i+1}",
-            "Item": np.random.choice(items),
-            "Quantity": np.random.randint(1, 5),
-            "Spent": np.random.randint(500, 5000),
-            "Days": np.random.choice(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]),
-            "StoreLocation": np.random.choice(["Delhi", "Mumbai", "Bangalore", "Pune"])
-        })
-    collection.insert_many(data)
-
-# ==============================
-# FETCH DATA
-# ==============================
-data = list(collection.find({}, {"_id": 0}))
-df = pd.DataFrame(data)
-df["Total"] = df["Spent"] * df["Quantity"]
-
-# ==============================
-# STREAMLIT UI CONFIG
-# ==============================
-st.set_page_config(page_title="Retail Dashboard", layout="wide")
-
-# Pastel gradient theme and rounded cards
-st.markdown("""
+st.markdown(
+    """
     <style>
-        body {
-            background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
-            font-family: 'Poppins', sans-serif;
-            color: #333;
-        }
-        .stApp {
-            background-color: transparent;
-        }
-        .main-title {
-            text-align: center;
-            font-size: 2.3rem;
-            color: #4b5563;
-            margin-bottom: 0.5rem;
-            font-weight: 600;
-        }
-        .sub-title {
-            text-align: center;
-            font-size: 1rem;
-            color: #6b7280;
-            margin-bottom: 2rem;
-        }
-        .card {
-            background: #ffffffd9;
-            border-radius: 15px;
-            padding: 20px;
-            box-shadow: 0px 3px 12px rgba(0,0,0,0.08);
-            transition: transform 0.2s;
-        }
-        .card:hover {
-            transform: translateY(-4px);
-        }
-        .stButton>button {
-            border-radius: 8px;
-            background-color: #a5b4fc;
-            color: white;
-            border: none;
-            font-weight: 500;
-        }
-        .stButton>button:hover {
-            background-color: #818cf8;
-        }
+    body {background-color:#f9fafb;}
+    .stButton>button {border-radius:10px;background-color:#6c63ff;color:white;border:none;}
+    .stButton>button:hover {background-color:#5548d9;}
+    .block-container {padding-top:2rem;}
     </style>
-""", unsafe_allow_html=True)
+    """,
+    unsafe_allow_html=True
+)
 
-# ==============================
-# SIDEBAR NAVIGATION
-# ==============================
-st.sidebar.title("🔍 Navigation")
-page = st.sidebar.radio("Go to", ["Dashboard", "Data", "Analysis"])
+# ---------------------------
+# Helpers: Mongo connection
+# ---------------------------
+@st.cache_resource
+def init_connection():
+    try:
+        conn_str = st.secrets["mongo"]["connection_string"]
+        client = MongoClient(conn_str)
+        return client
+    except Exception as e:
+        st.error("❌ MongoDB connection failed. Check secrets.toml.")
+        return None
 
-# ==============================
-# HEADER
-# ==============================
-st.markdown('<h1 class="main-title">🏪 Retail Sales Dashboard</h1>', unsafe_allow_html=True)
-st.markdown('<p class="sub-title">Clean • Visual • Interactive</p>', unsafe_allow_html=True)
+def get_db_collections():
+    client = init_connection()
+    if client:
+        db_name = st.secrets["mongo"]["database"]
+        coll_name = st.secrets["mongo"]["collection"]
+        users_coll = st.secrets["mongo"].get("users_collection", "users")
+        db = client[db_name]
+        return db[coll_name], db[users_coll]
+    return None, None
 
-# ==============================
-# PAGE 1: DASHBOARD
-# ==============================
-if page == "Dashboard":
-    total_sales = df["Total"].sum()
-    avg_spent = df["Spent"].mean()
-    top_item = df.groupby("Item")["Total"].sum().idxmax()
+# ---------------------------
+# Simple password hashing
+# ---------------------------
+def hash_password(password: str) -> str:
+    return hashlib.sha256(password.encode()).hexdigest()
 
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.markdown(f"<div class='card'><h3>💰 Total Revenue</h3><h2>₹{total_sales:,.0f}</h2></div>", unsafe_allow_html=True)
-    with col2:
-        st.markdown(f"<div class='card'><h3>🧍 Avg Spend / Customer</h3><h2>₹{avg_spent:,.0f}</h2></div>", unsafe_allow_html=True)
-    with col3:
-        st.markdown(f"<div class='card'><h3>🔥 Top Selling Item</h3><h2>{top_item}</h2></div>", unsafe_allow_html=True)
+# ---------------------------
+# User functions (Mongo)
+# ---------------------------
+def register_user(username, password, full_name, role="user"):
+    _, users_coll = get_db_collections()
+    if users_coll is not None:
+        if users_coll.find_one({"username": username}):
+            return False, "Username already exists"
+        users_coll.insert_one({
+            "username": username,
+            "password": hash_password(password),
+            "role": role,
+            "full_name": full_name,
+            "created_at": datetime.now()
+        })
+        return True, "Registered"
+    return False, "DB connection problem"
 
-# ==============================
-# PAGE 2: DATA (Admin editable)
-# ==============================
-elif page == "Data":
-    st.subheader("📋 Manage Product Data")
-    st.caption("Admin can edit rows but not columns")
+def authenticate_user(username, password):
+    _, users_coll = get_db_collections()
+    if users_coll is not None:
+        user = users_coll.find_one({"username": username, "password": hash_password(password)})
+        if user:
+            return {"username": user["username"], "role": user["role"], "full_name": user.get("full_name", user["username"])}
+    return None
 
-    edited_df = st.data_editor(df, num_rows="dynamic", disabled=["CustomerID", "Name", "Item", "Days", "StoreLocation"])
+# ---------------------------
+# Local DataFrame creation (clean sample data)
+# ---------------------------
+@st.cache_data
+def create_local_df():
+    np.random.seed(42)
+    categories = ['Electronics', 'Clothing', 'Food', 'Home', 'Sports', 'Books', 'Toys']
+    names = [
+        'Wireless Earbuds', 'Running Shoes', 'Smartphone', 'Laptop', 'T-Shirt', 'Novel', 'Yoga Mat',
+        'Gaming Mouse', 'Smartwatch', 'Cookware Set', 'Bluetooth Speaker', 'Football', 'Desk Lamp',
+        'Sunglasses', 'Backpack', 'Sneakers', 'Action Figure', 'Water Bottle', 'Headphones', 'Charger'
+    ]
+    df = pd.DataFrame({
+        'Product_ID': [f"P{i:03d}" for i in range(1, 21)],
+        'Product_Name': names,
+        'Category': np.random.choice(categories, 20),
+        'Price': np.round(np.random.uniform(15, 800, 20), 2),
+        'Rating': np.round(np.random.uniform(3.0, 5.0, 20), 1),
+        'Sales_Volume': np.random.randint(50, 1200, 20),
+        'Stock': np.random.randint(10, 300, 20),
+        'Discount': np.random.choice([0, 5, 10, 15, 20], 20)
+    })
+    # Clean & Transform
+    df['Revenue'] = np.round(df['Price'] * df['Sales_Volume'] * (1 - df['Discount'] / 100), 2)
+    df['Recommendation_Score'] = np.round(
+        (df['Rating'] * 0.4)
+        + (df['Sales_Volume'] / df['Sales_Volume'].max() * 5 * 0.3)
+        + (df['Discount'] / 25 * 5 * 0.3),
+        2
+    )
+    return df
 
-    col1, col2 = st.columns([1, 1])
-    with col1:
-        if st.button("💾 Save Changes"):
-            collection.delete_many({})
-            collection.insert_many(edited_df.to_dict(orient="records"))
-            st.success("✅ Data updated successfully!")
-    with col2:
-        csv = df.to_csv(index=False).encode("utf-8")
-        st.download_button("⬇️ Export as CSV", csv, "retail_data.csv", "text/csv")
+# ---------------------------
+# Mongo sync
+# ---------------------------
+def load_products_from_mongo():
+    coll, _ = get_db_collections()
+    if coll is not None:
+        docs = list(coll.find({}, {"_id": 0}))
+        if len(docs) > 0:
+            return pd.DataFrame(docs)
+    return pd.DataFrame()
 
-# ==============================
-# PAGE 3: ANALYSIS
-# ==============================
-elif page == "Analysis":
-    st.subheader("📊 Data Analysis & Visualization")
+def push_local_to_mongo(df):
+    coll, _ = get_db_collections()
+    if coll is not None:
+        coll.delete_many({})
+        if not df.empty:
+            coll.insert_many(df.to_dict("records"))
+        return True
+    return False
 
-    col1, col2 = st.columns(2)
-    with col1:
-        fig1 = px.bar(df.groupby("Item", as_index=False).sum(), x="Item", y="Total", title="Total Sales by Product", color="Item")
-        st.plotly_chart(fig1, use_container_width=True)
+# ---------------------------
+# Dashboard Visualization
+# ---------------------------
+def show_dashboard(df):
+    st.header("📊 Sales Overview")
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Products", len(df))
+    col2.metric("Total Revenue", f"${df['Revenue'].sum():,.2f}")
+    col3.metric("Avg Rating", f"{df['Rating'].mean():.2f}⭐")
+    col4.metric("Total Sales", f"{df['Sales_Volume'].sum():,}")
 
-    with col2:
-        fig2 = px.pie(df, names="StoreLocation", values="Total", title="Revenue by Store Location")
-        st.plotly_chart(fig2, use_container_width=True)
+    st.subheader("Revenue by Category")
+    cat_rev = df.groupby('Category')['Revenue'].sum().sort_values(ascending=False).reset_index()
+    fig = px.bar(cat_rev, x='Category', y='Revenue', color='Category',
+                 color_discrete_sequence=px.colors.qualitative.Pastel,
+                 title="Revenue by Category")
+    st.plotly_chart(fig, use_container_width=True)
 
-    st.markdown("---")
-    fig3 = px.line(df.groupby("Days", as_index=False).sum(), x="Days", y="Total", title="Sales Trend by Day", markers=True)
-    st.plotly_chart(fig3, use_container_width=True)
+    st.subheader("Discount vs Revenue")
+    fig2 = px.scatter(df, x='Discount', y='Revenue', size='Sales_Volume',
+                      color='Rating', color_continuous_scale='Viridis',
+                      hover_data=['Product_Name'])
+    st.plotly_chart(fig2, use_container_width=True)
+
+    st.subheader("Top 5 Products by Revenue")
+    st.dataframe(df.nlargest(5, 'Revenue')[['Product_Name', 'Category', 'Price', 'Sales_Volume', 'Revenue']], use_container_width=True)
+
+# ---------------------------
+# Product view with export
+# ---------------------------
+def show_products(df):
+    st.header("🛍️ Browse Products")
+    with st.expander("Filters", expanded=True):
+        c1, c2, c3 = st.columns(3)
+        cat = c1.selectbox("Category", ['All'] + sorted(df['Category'].unique().tolist()))
+        min_price, max_price = c2.slider("Price range", float(df['Price'].min()), float(df['Price'].max()),
+                                         (float(df['Price'].min()), float(df['Price'].max())))
+        min_rating = c3.slider("Minimum Rating", 0.0, 5.0, 3.5, 0.1)
+
+    filtered = df.copy()
+    if cat != "All":
+        filtered = filtered[filtered["Category"] == cat]
+    filtered = filtered[(filtered["Price"] >= min_price) & (filtered["Price"] <= max_price)]
+    filtered = filtered[filtered["Rating"] >= min_rating]
+
+    st.dataframe(filtered.reset_index(drop=True), use_container_width=True)
+    st.download_button("⬇️ Export as CSV", data=filtered.to_csv(index=False), file_name="products_filtered.csv")
+
+# ---------------------------
+# Login Page
+# ---------------------------
+def show_login_page():
+    st.title("🛒 Retail Sales App")
+    st.markdown("### Sign in to access — Admins manage, Users explore.")
+
+    login_tab, reg_tab = st.tabs(["Login", "Register"])
+    with login_tab:
+        with st.form("login_form"):
+            u = st.text_input("Username")
+            p = st.text_input("Password", type="password")
+            sub = st.form_submit_button("Login")
+            if sub:
+                user = authenticate_user(u, p)
+                if user:
+                    st.session_state.user = user
+                    st.session_state.logged_in = True
+                    st.success("✅ Login successful!")
+                    st.rerun()
+                else:
+                    st.error("Invalid credentials")
+
+    with reg_tab:
+        with st.form("register_form"):
+            name = st.text_input("Full name")
+            user = st.text_input("Username")
+            pwd = st.text_input("Password", type="password")
+            role = st.selectbox("Role", ["user", "admin"])
+            btn = st.form_submit_button("Register")
+            if btn:
+                if not all([name, user, pwd]):
+                    st.warning("Fill all fields")
+                else:
+                    ok, msg = register_user(user, pwd, name, role)
+                    st.success(msg if ok else msg)
+
+# ---------------------------
+# Main App
+# ---------------------------
+def show_main_app():
+    user = st.session_state.user
+    st.sidebar.write(f"👤 {user['full_name']} ({user['role']})")
+    if st.sidebar.button("Logout"):
+        st.session_state.logged_in = False
+        st.session_state.user = None
+        st.rerun()
+
+    # Load or create data
+    if "df" not in st.session_state:
+        mongo_df = load_products_from_mongo()
+        st.session_state.df = mongo_df if not mongo_df.empty else create_local_df()
+        push_local_to_mongo(st.session_state.df)
+
+    df = st.session_state.df
+
+    if user["role"] == "admin":
+        page = st.sidebar.radio("Go to", ["Dashboard", "Products", "Sync"])
+    else:
+        page = st.sidebar.radio("Go to", ["Dashboard", "Products"])
+
+    if page == "Dashboard":
+        show_dashboard(df)
+    elif page == "Products":
+        show_products(df)
+    elif page == "Sync":
+        if st.button("Push Local to MongoDB"):
+            push_local_to_mongo(df)
+            st.success("✅ Data pushed to Mongo successfully.")
+        if st.button("Pull from MongoDB"):
+            st.session_state.df = load_products_from_mongo()
+            st.success("📥 Data pulled from Mongo.")
+
+# ---------------------------
+# Entry point
+# ---------------------------
+def main():
+    if "logged_in" not in st.session_state:
+        st.session_state.logged_in = False
+    if not st.session_state.logged_in:
+        show_login_page()
+    else:
+        show_main_app()
+
+if __name__ == "__main__":
+    main()

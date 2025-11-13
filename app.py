@@ -34,7 +34,7 @@ if collection.count_documents({}) == 0:
 
     for i in range(20):
         products.append({
-            "Product Name": f"Product_{i+1}",
+            "Product_Name": f"Product_{i+1}",
             "Category": np.random.choice(categories),
             "Price": np.random.randint(300, 4000),
             "Rating": np.random.uniform(2.5, 5.0),
@@ -99,7 +99,7 @@ st.title("🛒 Retail Product Browser")
 search_query = st.text_input("Search for products...", placeholder="Type product name...").strip().lower()
 
 if search_query:
-    results = filtered_df[filtered_df["Product Name"].str.lower().str.contains(search_query)]
+    results = filtered_df[filtered_df["Product_Name"].str.lower().str.contains(search_query)]
     if results.empty:
         st.warning("No products found for your search.")
     else:
@@ -135,7 +135,7 @@ st.subheader("📊 Sales Analysis")
 
 col1, col2 = st.columns(2)
 with col1:
-    fig = px.bar(df, x="Product Name", y="Revenue", title="Revenue per Product", color="Category")
+    fig = px.bar(df, x="Product_Name", y="Revenue", title="Revenue per Product", color="Category")
     st.plotly_chart(fig, use_container_width=True)
 
 with col2:
@@ -152,6 +152,7 @@ st.download_button(
     file_name="retail_products.csv",
     mime="text/csv"
 )
+
 
 
 

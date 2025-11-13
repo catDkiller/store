@@ -40,7 +40,7 @@ if collection.count_documents({}) == 0:
             "Rating": np.random.uniform(2.5, 5.0),
             "Sales Volume": np.random.randint(50, 500),
             "Available Stock": np.random.randint(10, 100),
-            "Total Revenue": np.random.randint(20000, 200000),
+            "Revenue": np.random.randint(20000, 200000),
             "Recommendation Score": np.random.uniform(50, 100)
         })
     collection.insert_many(products)
@@ -113,7 +113,7 @@ if search_query:
                 if st.button(f"View More Details - {row['Product Name']}"):
                     st.info(f"""
                     **Available Stock:** {row['Available Stock']}  
-                    **Total Revenue:** ₹{row['Total Revenue']:,}  
+                    **Revenue:** ₹{row['Revenue']:,}  
                     **Recommendation Score:** {row['Recommendation Score']:.1f}%
                     """)
         st.divider()
@@ -135,7 +135,7 @@ st.subheader("📊 Sales Analysis")
 
 col1, col2 = st.columns(2)
 with col1:
-    fig = px.bar(df, x="Product Name", y="Total Revenue", title="Total Revenue per Product", color="Category")
+    fig = px.bar(df, x="Product Name", y="Revenue", title="Revenue per Product", color="Category")
     st.plotly_chart(fig, use_container_width=True)
 
 with col2:
@@ -152,6 +152,7 @@ st.download_button(
     file_name="retail_products.csv",
     mime="text/csv"
 )
+
 
 
 

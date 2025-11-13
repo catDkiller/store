@@ -20,6 +20,7 @@ try:
     collection = db[COLLECTION_NAME]
     #    st.success("✅ Connected to MongoDB")
 except Exception as e:
+            pass
     #    st.error(f"❌ MongoDB connection failed: {e}")
     #    st.stop()
 
@@ -151,4 +152,5 @@ st.download_button(
     file_name="retail_products.csv",
     mime="text/csv"
 )
+
 

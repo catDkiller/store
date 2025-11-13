@@ -1,236 +1,151 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import hashlib
-from datetime import datetime
 from pymongo import MongoClient
 import plotly.express as px
+import random
 
-# ---------------------------
-# Config / Page setup
-# ---------------------------
-st.set_page_config(page_title="Retail Sales Dashboard", page_icon="🛒", layout="wide")
+# ==============================
+# MongoDB Connection
+# ==============================
+MONGO_URI = "mongodb+srv://Garvit:bababro89@store.bihf6uw.mongodb.net/?appName=store"
+DB_NAME = "retail_app"
+COLLECTION_NAME = "products"
 
-# ---------------------------
-# Mongo connection
-# ---------------------------
-@st.cache_resource
-def init_connection():
-    try:
-        conn_str = st.secrets["mongo"]["connection_string"]
-        client = MongoClient(conn_str)
-        return client
-    except Exception as e:
-        st.error("MongoDB connection failed. Check secrets.toml.")
-        return None
+try:
+    client = MongoClient(MONGO_URI)
+    db = client[DB_NAME]
+    collection = db[COLLECTION_NAME]
+    st.success("✅ Connected to MongoDB")
+except Exception as e:
+    st.error(f"❌ MongoDB connection failed: {e}")
+    st.stop()
 
-def get_db_collections():
-    client = init_connection()
-    if client:
-        db_name = st.secrets["mongo"]["database"]
-        db = client[db_name]
-        return (
-            db[st.secrets["mongo"]["collection"]],
-            db[st.secrets["mongo"]["users_collection"]],
-            db["purchases"],
-        )
-    return None, None, None
-
-# ---------------------------
-# Helpers
-# ---------------------------
-def hash_password(password):
-    return hashlib.sha256(password.encode()).hexdigest()
-
-@st.cache_data
-def create_sample_data():
+# ==============================
+# Sample Data (if empty)
+# ==============================
+if collection.count_documents({}) == 0:
     np.random.seed(42)
-    categories = ["Electronics", "Clothing", "Books", "Home", "Toys"]
-    data = {
-        "Product_ID": [f"P{i}" for i in range(1, 21)],
-        "Product_Name": [f"{np.random.choice(categories)} Item {i}" for i in range(1, 21)],
-        "Category": np.random.choice(categories, 20),
-        "Price": np.round(np.random.uniform(10, 500, 20), 2),
-        "Rating": np.round(np.random.uniform(3.0, 5.0, 20), 1),
-        "Stock": np.random.randint(0, 50, 20),
-        "Discount": np.random.choice([0, 5, 10, 15, 20], 20),
-        "Sales_Volume": np.random.randint(10, 1000, 20),
-    }
-    df = pd.DataFrame(data)
-    df["Revenue"] = (df["Price"] * df["Sales_Volume"] * (1 - df["Discount"] / 100)).round(2)
-    return df
+    categories = ["Clothing", "Shoes", "Accessories", "Electronics"]
+    products = []
 
-# ---------------------------
-# DB functions
-# ---------------------------
-def register_user(username, password, full_name, role="user"):
-    _, users_coll, _ = get_db_collections()
-    if users_coll.find_one({"username": username}):
-        return False, "Username already exists"
-    users_coll.insert_one({
-        "username": username,
-        "password": hash_password(password),
-        "role": role,
-        "full_name": full_name,
-        "created_at": datetime.now(),
-    })
-    return True, "Registered successfully"
+    for i in range(20):
+        products.append({
+            "Product Name": f"Product_{i+1}",
+            "Category": np.random.choice(categories),
+            "Unit Price": np.random.randint(300, 4000),
+            "Customer Rating": np.random.uniform(2.5, 5.0),
+            "Sales Volume": np.random.randint(50, 500),
+            "Available Stock": np.random.randint(10, 100),
+            "Total Revenue": np.random.randint(20000, 200000),
+            "Recommendation Score": np.random.uniform(50, 100)
+        })
+    collection.insert_many(products)
+    st.info("🧾 20 sample product records added to MongoDB.")
 
-def authenticate_user(username, password):
-    _, users_coll, _ = get_db_collections()
-    user = users_coll.find_one({"username": username, "password": hash_password(password)})
-    return user
+# ==============================
+# Load Data
+# ==============================
+data = list(collection.find({}, {"_id": 0}))
+df = pd.DataFrame(data)
 
-def load_products():
-    coll, _, _ = get_db_collections()
-    return pd.DataFrame(list(coll.find({}, {"_id": 0}))) if coll.count_documents({}) > 0 else pd.DataFrame()
+# ==============================
+# Streamlit Page Config
+# ==============================
+st.set_page_config(page_title="🛍️ Retail Sales Dashboard", layout="wide")
 
-def save_products(df):
-    coll, _, _ = get_db_collections()
-    coll.delete_many({})
-    coll.insert_many(df.to_dict("records"))
+# Soft Modern Theme
+st.markdown("""
+    <style>
+        body {background-color: #F8FAFC;}
+        .stApp {background-color: #FAFAFA;}
+        .stButton>button {background-color: #A5B4FC; color: white; border-radius: 10px;}
+        .stButton>button:hover {background-color: #818CF8;}
+        div[data-testid="stMetricValue"] {color: #4F46E5;}
+    </style>
+""", unsafe_allow_html=True)
 
-def record_purchase(username, product):
-    _, _, purchases = get_db_collections()
-    purchase = {
-        "username": username,
-        "Product_ID": product["Product_ID"],
-        "Product_Name": product["Product_Name"],
-        "Price": product["Price"],
-        "Quantity": 1,
-        "Purchase_Date": datetime.now(),
-    }
-    purchases.insert_one(purchase)
+# ==============================
+# Sidebar Filters
+# ==============================
+st.sidebar.header("🔍 Filter Options")
 
-def get_all_purchases():
-    _, _, purchases = get_db_collections()
-    return pd.DataFrame(list(purchases.find({}, {"_id": 0})))
+selected_category = st.sidebar.selectbox(
+    "Select Category", options=["All"] + sorted(df["Category"].unique().tolist())
+)
 
-# ---------------------------
-# Login & Registration
-# ---------------------------
-def login_register():
-    st.title("🛒 Retail App Login")
-    tab1, tab2 = st.tabs(["Login", "Register"])
-    
-    with tab1:
-        with st.form("login"):
-            u = st.text_input("Username")
-            p = st.text_input("Password", type="password")
-            submit = st.form_submit_button("Login")
-            if submit:
-                user = authenticate_user(u, p)
-                if user:
-                    st.session_state.user = user
-                    st.session_state.logged_in = True
-                    st.rerun()
-                else:
-                    st.error("Invalid credentials.")
-    
-    with tab2:
-        with st.form("register"):
-            name = st.text_input("Full Name")
-            u = st.text_input("New Username")
-            p = st.text_input("Password", type="password")
-            c = st.text_input("Confirm Password", type="password")
-            if st.form_submit_button("Register"):
-                if p != c:
-                    st.error("Passwords do not match.")
-                elif len(p) < 6:
-                    st.warning("Password must be 6+ characters.")
-                else:
-                    ok, msg = register_user(u, p, name)
-                    st.success(msg) if ok else st.error(msg)
+min_price, max_price = int(df["Unit Price"].min()), int(df["Unit Price"].max())
+price_range = st.sidebar.slider("Price Range (₹)", min_price, max_price, (min_price, max_price))
 
-# ---------------------------
-# Dashboard (with visualizations)
-# ---------------------------
-def dashboard(df):
-    st.header("📊 Sales Dashboard")
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Products", len(df))
-    col2.metric("Total Revenue", f"${df['Revenue'].sum():,.2f}")
-    col3.metric("Avg Rating", f"{df['Rating'].mean():.2f}⭐")
-    col4.metric("Total Sales", f"{df['Sales_Volume'].sum():,}")
-    
-    st.subheader("Revenue by Category")
-    fig = px.bar(df.groupby("Category")["Revenue"].sum().reset_index(), x="Category", y="Revenue",
-                 color="Category", title="Revenue Distribution by Category")
+rating_filter = st.sidebar.slider("Minimum Rating", 0.0, 5.0, 3.0, 0.1)
+
+# Apply filters
+filtered_df = df[
+    ((df["Unit Price"] >= price_range[0]) & (df["Unit Price"] <= price_range[1])) &
+    (df["Customer Rating"] >= rating_filter)
+]
+
+if selected_category != "All":
+    filtered_df = filtered_df[filtered_df["Category"] == selected_category]
+
+# ==============================
+# Search Bar + Recommendations
+# ==============================
+st.title("🛒 Retail Product Browser")
+
+search_query = st.text_input("Search for products...", placeholder="Type product name...").strip().lower()
+
+if search_query:
+    results = filtered_df[filtered_df["Product Name"].str.lower().str.contains(search_query)]
+    if results.empty:
+        st.warning("No products found for your search.")
+    else:
+        st.subheader(f"Results for '{search_query}':")
+        for _, row in results.iterrows():
+            with st.container():
+                st.markdown(f"### 🏷️ {row['Product Name']}")
+                st.write(f"💰 Price: ₹{row['Unit Price']:.2f}")
+                st.write(f"⭐ Rating: {row['Customer Rating']:.1f}")
+                st.write(f"📦 Sold: {row['Sales Volume']} units")
+                if st.button(f"View More Details - {row['Product Name']}"):
+                    st.info(f"""
+                    **Available Stock:** {row['Available Stock']}  
+                    **Total Revenue:** ₹{row['Total Revenue']:,}  
+                    **Recommendation Score:** {row['Recommendation Score']:.1f}%
+                    """)
+        st.divider()
+
+    # Show random recommendations
+    st.subheader("💡 Recommended for You")
+    recommended = df.sample(3)
+    for _, rec in recommended.iterrows():
+        st.markdown(f"**🛍️ {rec['Product Name']}** — ₹{rec['Unit Price']:.0f} | ⭐ {rec['Customer Rating']:.1f}")
+else:
+    st.subheader("Browse All Products")
+    st.dataframe(filtered_df.drop(columns=["Category"]))
+
+# ==============================
+# Visualization
+# ==============================
+st.divider()
+st.subheader("📊 Sales Analysis")
+
+col1, col2 = st.columns(2)
+with col1:
+    fig = px.bar(df, x="Product Name", y="Total Revenue", title="Total Revenue per Product", color="Category")
     st.plotly_chart(fig, use_container_width=True)
 
-# ---------------------------
-# User View
-# ---------------------------
-def user_view(df):
-    st.header("🛍️ Browse Products")
-    with st.expander("Filters", expanded=True):
-        col1, col2 = st.columns(2)
-        cat = col1.selectbox("Category", ["All"] + sorted(df["Category"].unique().tolist()))
-        min_rating = col2.slider("Minimum Rating", 0.0, 5.0, 3.0, 0.1)
-        if cat != "All":
-            df = df[df["Category"] == cat]
-        df = df[df["Rating"] >= min_rating]
+with col2:
+    fig2 = px.scatter(df, x="Customer Rating", y="Sales Volume",
+                      size="Unit Price", color="Category", title="Rating vs Sales Volume")
+    st.plotly_chart(fig2, use_container_width=True)
 
-    st.write(f"Showing {len(df)} products")
-    st.dataframe(df, use_container_width=True)
-
-    for _, row in df.iterrows():
-        if row["Stock"] > 0:
-            if st.button(f"Buy {row['Product_Name']} - ${row['Price']}", key=row["Product_ID"]):
-                record_purchase(st.session_state.user["username"], row)
-                st.success(f"Purchased {row['Product_Name']} successfully!")
-
-# ---------------------------
-# Admin Panel
-# ---------------------------
-def admin_panel(df):
-    st.header("👨‍💼 Admin Panel")
-    subtab1, subtab2 = st.tabs(["Products", "User Purchases"])
-    
-    with subtab1:
-        st.dataframe(df, use_container_width=True)
-        if st.button("Export Products to CSV"):
-            df.to_csv("products.csv", index=False)
-            st.success("Exported as products.csv")
-    
-    with subtab2:
-        purchases = get_all_purchases()
-        if not purchases.empty:
-            st.dataframe(purchases, use_container_width=True)
-        else:
-            st.info("No purchases yet.")
-
-# ---------------------------
-# Main app
-# ---------------------------
-def main():
-    if "logged_in" not in st.session_state:
-        st.session_state.logged_in = False
-        st.session_state.user = None
-
-    if not st.session_state.logged_in:
-        login_register()
-        return
-
-    user = st.session_state.user
-    st.sidebar.success(f"Welcome, {user['full_name']} ({user['role']})")
-    if st.sidebar.button("Logout"):
-        st.session_state.logged_in = False
-        st.rerun()
-
-    mongo_df = load_products()
-    df = mongo_df if not mongo_df.empty else create_sample_data()
-    if mongo_df.empty:
-        save_products(df)
-
-    choice = st.sidebar.radio("Navigate", ["Dashboard", "Shop"] if user["role"] == "user" else ["Dashboard", "Admin"])
-
-    if choice == "Dashboard":
-        dashboard(df)
-    elif choice == "Shop" and user["role"] == "user":
-        user_view(df)
-    elif choice == "Admin" and user["role"] == "admin":
-        admin_panel(df)
-
-if __name__ == "__main__":
-    main()
+# ==============================
+# Export CSV
+# ==============================
+st.download_button(
+    label="📥 Export Data as CSV",
+    data=filtered_df.to_csv(index=False).encode('utf-8'),
+    file_name="retail_products.csv",
+    mime="text/csv"
+)

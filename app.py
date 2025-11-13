@@ -13,10 +13,10 @@ st.set_page_config(page_title="🛍️ Retail Sales Dashboard", layout="wide")
 # ==============================
 # MONGO CONNECTION (from secrets.toml)
 # ==============================
-mongo_uri = st.secrets["mongo"]["uri"]
-db_name = st.secrets["mongo"]["database"]
-coll_users = st.secrets["mongo"]["collection_users"]
-coll_products = st.secrets["mongo"]["collection_products"]
+mongo_uri = "mongodb+srv://Garvit:bababro89@store.bihf6uw.mongodb.net/?appName=store"
+db_name = "retail_app"
+coll_users = "users"
+coll_products = "products"
 
 try:
     client = MongoClient(mongo_uri)
@@ -177,3 +177,4 @@ with col1:
 with col2:
     fig2 = px.scatter(df, x="Rating", y="Sales_Volume", size="Price", color="Category", title="Rating vs Sales Volume")
     st.plotly_chart(fig2, use_container_width=True)
+

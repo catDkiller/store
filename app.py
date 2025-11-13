@@ -36,7 +36,7 @@ if collection.count_documents({}) == 0:
         products.append({
             "Product Name": f"Product_{i+1}",
             "Category": np.random.choice(categories),
-            "Unit Price": np.random.randint(300, 4000),
+            "Price": np.random.randint(300, 4000),
             "Customer Rating": np.random.uniform(2.5, 5.0),
             "Sales Volume": np.random.randint(50, 500),
             "Available Stock": np.random.randint(10, 100),
@@ -77,14 +77,14 @@ selected_category = st.sidebar.selectbox(
     "Select Category", options=["All"] + sorted(df["Category"].unique().tolist())
 )
 
-min_price, max_price = int(df["Unit Price"].min()), int(df["Unit Price"].max())
+min_price, max_price = int(df["Price"].min()), int(df["Price"].max())
 price_range = st.sidebar.slider("Price Range (₹)", min_price, max_price, (min_price, max_price))
 
 rating_filter = st.sidebar.slider("Minimum Rating", 0.0, 5.0, 3.0, 0.1)
 
 # Apply filters
 filtered_df = df[
-    ((df["Unit Price"] >= price_range[0]) & (df["Unit Price"] <= price_range[1])) &
+    ((df["Price"] >= price_range[0]) & (df["Price"] <= price_range[1])) &
     (df["Customer Rating"] >= rating_filter)
 ]
 
@@ -107,7 +107,7 @@ if search_query:
         for _, row in results.iterrows():
             with st.container():
                 st.markdown(f"### 🏷️ {row['Product Name']}")
-                st.write(f"💰 Price: ₹{row['Unit Price']:.2f}")
+                st.write(f"💰 Price: ₹{row['Price']:.2f}")
                 st.write(f"⭐ Rating: {row['Customer Rating']:.1f}")
                 st.write(f"📦 Sold: {row['Sales Volume']} units")
                 if st.button(f"View More Details - {row['Product Name']}"):
@@ -122,7 +122,7 @@ if search_query:
     st.subheader("💡 Recommended for You")
     recommended = df.sample(3)
     for _, rec in recommended.iterrows():
-        st.markdown(f"**🛍️ {rec['Product Name']}** — ₹{rec['Unit Price']:.0f} | ⭐ {rec['Customer Rating']:.1f}")
+        st.markdown(f"**🛍️ {rec['Product Name']}** — ₹{rec['Price']:.0f} | ⭐ {rec['Customer Rating']:.1f}")
 else:
     st.subheader("Browse All Products")
     st.dataframe(filtered_df.drop(columns=["Category"]))
@@ -140,7 +140,7 @@ with col1:
 
 with col2:
     fig2 = px.scatter(df, x="Customer Rating", y="Sales Volume",
-                      size="Unit Price", color="Category", title="Rating vs Sales Volume")
+                      size="Price", color="Category", title="Rating vs Sales Volume")
     st.plotly_chart(fig2, use_container_width=True)
 
 # ==============================
@@ -152,5 +152,6 @@ st.download_button(
     file_name="retail_products.csv",
     mime="text/csv"
 )
+
 
 

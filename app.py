@@ -37,7 +37,7 @@ if collection.count_documents({}) == 0:
             "Product Name": f"Product_{i+1}",
             "Category": np.random.choice(categories),
             "Price": np.random.randint(300, 4000),
-            "Customer Rating": np.random.uniform(2.5, 5.0),
+            "Rating": np.random.uniform(2.5, 5.0),
             "Sales Volume": np.random.randint(50, 500),
             "Available Stock": np.random.randint(10, 100),
             "Total Revenue": np.random.randint(20000, 200000),
@@ -85,7 +85,7 @@ rating_filter = st.sidebar.slider("Minimum Rating", 0.0, 5.0, 3.0, 0.1)
 # Apply filters
 filtered_df = df[
     ((df["Price"] >= price_range[0]) & (df["Price"] <= price_range[1])) &
-    (df["Customer Rating"] >= rating_filter)
+    (df["Rating"] >= rating_filter)
 ]
 
 if selected_category != "All":
@@ -108,7 +108,7 @@ if search_query:
             with st.container():
                 st.markdown(f"### 🏷️ {row['Product Name']}")
                 st.write(f"💰 Price: ₹{row['Price']:.2f}")
-                st.write(f"⭐ Rating: {row['Customer Rating']:.1f}")
+                st.write(f"⭐ Rating: {row['Rating']:.1f}")
                 st.write(f"📦 Sold: {row['Sales Volume']} units")
                 if st.button(f"View More Details - {row['Product Name']}"):
                     st.info(f"""
@@ -122,7 +122,7 @@ if search_query:
     st.subheader("💡 Recommended for You")
     recommended = df.sample(3)
     for _, rec in recommended.iterrows():
-        st.markdown(f"**🛍️ {rec['Product Name']}** — ₹{rec['Price']:.0f} | ⭐ {rec['Customer Rating']:.1f}")
+        st.markdown(f"**🛍️ {rec['Product Name']}** — ₹{rec['Price']:.0f} | ⭐ {rec['Rating']:.1f}")
 else:
     st.subheader("Browse All Products")
     st.dataframe(filtered_df.drop(columns=["Category"]))
@@ -139,7 +139,7 @@ with col1:
     st.plotly_chart(fig, use_container_width=True)
 
 with col2:
-    fig2 = px.scatter(df, x="Customer Rating", y="Sales Volume",
+    fig2 = px.scatter(df, x="Rating", y="Sales Volume",
                       size="Price", color="Category", title="Rating vs Sales Volume")
     st.plotly_chart(fig2, use_container_width=True)
 
@@ -152,6 +152,7 @@ st.download_button(
     file_name="retail_products.csv",
     mime="text/csv"
 )
+
 
 
 

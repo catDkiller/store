@@ -5,6 +5,8 @@ from pymongo import MongoClient
 import plotly.express as px
 import random
 
+st.set_page_config(page_title="🛍️ Retail Sales Dashboard", layout="wide")
+
 # ==============================
 # MongoDB Connection
 # ==============================
@@ -16,10 +18,10 @@ try:
     client = MongoClient(MONGO_URI)
     db = client[DB_NAME]
     collection = db[COLLECTION_NAME]
-    st.success("✅ Connected to MongoDB")
+    #    st.success("✅ Connected to MongoDB")
 except Exception as e:
-    st.error(f"❌ MongoDB connection failed: {e}")
-    st.stop()
+    #    st.error(f"❌ MongoDB connection failed: {e}")
+    #    st.stop()
 
 # ==============================
 # Sample Data (if empty)
@@ -52,7 +54,7 @@ df = pd.DataFrame(data)
 # ==============================
 # Streamlit Page Config
 # ==============================
-st.set_page_config(page_title="🛍️ Retail Sales Dashboard", layout="wide")
+
 
 # Soft Modern Theme
 st.markdown("""
@@ -149,3 +151,4 @@ st.download_button(
     file_name="retail_products.csv",
     mime="text/csv"
 )
+

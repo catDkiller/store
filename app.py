@@ -14,8 +14,35 @@ st.markdown("""
     background-color: #000000;
     color: #FFFFFF;
 }
+[data-testid="stSidebar"] {
+    background-color: #1a1a1a;
+}
 </style>
 """, unsafe_allow_html=True)
+
+# ==============================
+# Authentication System
+# ==============================
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+
+if not st.session_state.logged_in:
+    st.title("🔐 Login to Retail Sales Dashboard")
+    st.markdown("---")
+    
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
+    
+    if st.button("Login"):
+        # Simple authentication (you can replace with database check)
+        if username == "admin" and password == "admin123":
+            st.session_state.logged_in = True
+            st.success("✅ Login successful! Redirecting...")
+            st.rerun()
+        else:
+            st.error("❌ Invalid username or password")
+    
+    st.stop()  # Stop execution if not logged in
 
 # ==============================
 # MongoDB Connection
@@ -103,6 +130,13 @@ if selected_category != "All":
 # ==============================
 # Search Bar + Recommendations
 # ==============================
+
+# Logout button in top right corner
+col1, col2 = st.columns([6, 1])
+with col2:
+    if st.button("🚪 Logout"):
+        st.session_state.logged_in = False
+        st.rerun()
 st.title("🛒 Retail Product Browser")
 
 search_query = st.text_input("Search for products...", placeholder="Type product name...").strip().lower()
@@ -161,6 +195,7 @@ st.download_button(
     file_name="retail_products.csv",
     mime="text/csv"
 )
+
 
 
 

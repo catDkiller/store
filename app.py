@@ -7,6 +7,16 @@ import random
 
 st.set_page_config(page_title="🛍️ Retail Sales Dashboard", layout="wide")
 
+# Black background styling
+st.markdown("""
+<style>
+.stApp {
+    background-color: #000000;
+    color: #FFFFFF;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # ==============================
 # MongoDB Connection
 # ==============================
@@ -18,11 +28,10 @@ try:
     client = MongoClient(MONGO_URI)
     db = client[DB_NAME]
     collection = db[COLLECTION_NAME]
-    #    st.success("✅ Connected to MongoDB")
+  #    st.success("✅ Connected to MongoDB")
 except Exception as e:
-            pass
-    #    st.error(f"❌ MongoDB connection failed: {e}")
-    #    st.stop()
+  #    st.error(f"❌ MongoDB connection failed: {e}")
+  #    st.stop()
 
 # ==============================
 # Sample Data (if empty)
@@ -38,7 +47,7 @@ if collection.count_documents({}) == 0:
             "Category": np.random.choice(categories),
             "Price": np.random.randint(300, 4000),
             "Rating": np.random.uniform(2.5, 5.0),
-            "Sales Volume": np.random.randint(50, 500),
+            "Sales_Volume": np.random.randint(50, 500),
             "Available Stock": np.random.randint(10, 100),
             "Revenue": np.random.randint(20000, 200000),
             "Recommendation Score": np.random.uniform(50, 100)
@@ -139,7 +148,7 @@ with col1:
     st.plotly_chart(fig, use_container_width=True)
 
 with col2:
-    fig2 = px.scatter(df, x="Rating", y="Sales Volume",
+    fig2 = px.scatter(df, x="Rating", y="Sales_Volume",
                       size="Price", color="Category", title="Rating vs Sales Volume")
     st.plotly_chart(fig2, use_container_width=True)
 
@@ -152,6 +161,7 @@ st.download_button(
     file_name="retail_products.csv",
     mime="text/csv"
 )
+
 
 
 
